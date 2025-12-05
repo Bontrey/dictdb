@@ -2,31 +2,56 @@
 
 ## Usage
 
+### JSONL Output Mode
 ```bash
 python3 filter_jsonl.py <n> [input_file] [schema_file] [output_file]
 ```
 
+### SQLite Output Mode
+```bash
+python3 filter_jsonl.py <n> --sqlite <db_file> [input_file] [schema_file]
+```
+
 ### Parameters:
-- `n`: Number of lines to process (required)
+- `n`: Number of entries to output (required)
 - `input_file`: Path to input JSONL file (default: `fr-extract.jsonl`)
 - `schema_file`: Path to schema file (default: `schema.json`)
 - `output_file`: Path to output file (optional, default: stdout)
+- `db_file`: Path to SQLite database file (with `--sqlite` flag)
 
 ### Examples:
 
+**JSONL output:**
 ```bash
-# Process first 10 lines, output to stdout
+# Process first 10 entries, output to stdout
 python3 filter_jsonl.py 10
 
-# Process first 100 lines, save to file
+# Process first 100 entries, save to file
 python3 filter_jsonl.py 100 fr-extract.jsonl schema.json filtered-output.jsonl
 
-# Process first 1000 lines with custom input file
+# Process first 1000 entries with custom input file
 python3 filter_jsonl.py 1000 my-data.jsonl
 
-# Pipe output to another tool (e.g., jq for pretty printing a single line)
+# Pipe output to another tool (e.g., jq for pretty printing a single entry)
 python3 filter_jsonl.py 1 | head -1 | jq .
 ```
+
+**SQLite output:**
+```bash
+# Create SQLite database with 1000 entries
+python3 filter_jsonl.py 1000 --sqlite dictionary.db
+
+# Create database with custom files
+python3 filter_jsonl.py 5000 --sqlite french.db fr-extract.jsonl schema.json
+
+# Query the database
+sqlite3 dictionary.db "SELECT word, pos FROM entries LIMIT 10;"
+
+# Full-text search
+sqlite3 dictionary.db "SELECT e.word FROM entries_fts fts JOIN entries e ON fts.rowid = e.id WHERE entries_fts MATCH 'lib*' LIMIT 10;"
+```
+
+See [SQLITE_USAGE.md](SQLITE_USAGE.md) for detailed SQLite usage including iOS/Swift examples.
 
 ## How it works
 

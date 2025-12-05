@@ -4,6 +4,8 @@ fr-extract.jsonl
 # Output files
 *.jsonl
 !schema.json
+*.db
+*.db-journal
 
 # Python cache
 __pycache__/
