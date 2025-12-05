@@ -1,0 +1,27 @@
+{
+  "word": "string",
+  "pos": "string",
+  "etymology_texts": ["string"],
+  "senses": [
+    {
+      "glosses": ["string"],
+      "categories": ["string"],
+      "examples": [
+        {
+          "text": "string",
+          "bold_text_offsets": [[number, number]],
+        }
+      ],
+      "tags": ["string (optional)"]
+    }
+  ],
+  "sounds": [
+    {
+      "ipa": "string",
+      "ogg_url": "string (optional)",
+      "mp3_url": "string (optional)",
+      "wav_url": "string (optional)",
+    }
+  ],
+  "tags": ["string"]
+}

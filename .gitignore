@@ -1,0 +1,15 @@
+# Large data files
+fr-extract.jsonl
+
+# Output files
+*.jsonl
+!schema.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# OS files
+.DS_Store
