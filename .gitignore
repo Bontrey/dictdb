@@ -6,6 +6,7 @@ fr-extract.jsonl
 !schema.json
 *.db
 *.db-journal
+*.xz
 
 # Python cache
 __pycache__/
