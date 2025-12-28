@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Filter JSONL file based on schema fields.
-Usage: python filter_jsonl.py <n> [input_file] [schema_file] [output_file]
-       python filter_jsonl.py <n> --sqlite output.db [input_file] [schema_file]
+Usage: python filter_jsonl.py [n] [input_file] [schema_file] [output_file]
+       python filter_jsonl.py [n] --sqlite output.db [input_file] [schema_file]
+Note: If n is not specified, processes entire input file.
 """
 
 import json
@@ -178,34 +179,30 @@ class JsonlOutput:
 
 def main():
     # Parse command line arguments
-    if len(sys.argv) < 2:
-        print("Usage:")
-        print("  JSONL: python3 filter_jsonl.py <n> [input_file] [schema_file] [output_file]")
-        print("  SQLite: python3 filter_jsonl.py <n> --sqlite <db_file> [input_file] [schema_file]")
-        print()
-        print("Arguments:")
-        print("  n: number of entries to output")
-        print("  input_file: path to input JSONL file (default: fr-extract.jsonl)")
-        print("  schema_file: path to schema JSON file (default: schema.json)")
-        print("  output_file: path to output file (default: stdout)")
-        print("  db_file: path to SQLite database file (with --sqlite)")
-        sys.exit(1)
+    # Determine if first argument is n (a number) or another parameter
+    n = None
+    arg_offset = 1
 
-    # Parse arguments
-    n = int(sys.argv[1])
+    if len(sys.argv) >= 2:
+        try:
+            n = int(sys.argv[1])
+            arg_offset = 2
+        except ValueError:
+            # First argument is not a number, so n is not specified
+            n = None
+            arg_offset = 1
 
     # Check for --sqlite flag
     use_sqlite = False
     db_file = None
-    arg_offset = 2
 
-    if len(sys.argv) > 2 and sys.argv[2] == '--sqlite':
+    if len(sys.argv) > arg_offset and sys.argv[arg_offset] == '--sqlite':
         use_sqlite = True
-        if len(sys.argv) < 4:
+        if len(sys.argv) < arg_offset + 2:
             print("Error: --sqlite requires a database file path", file=sys.stderr)
             sys.exit(1)
-        db_file = sys.argv[3]
-        arg_offset = 4
+        db_file = sys.argv[arg_offset + 1]
+        arg_offset = arg_offset + 2
 
     # Parse remaining arguments
     if use_sqlite:
@@ -250,8 +247,8 @@ def main():
                 output_handler.write(filtered_obj)
                 lines_output += 1
 
-                # Stop when we've output n lines
-                if lines_output >= n:
+                # Stop when we've output n lines (if n is specified)
+                if n is not None and lines_output >= n:
                     break
 
         print(f"\nRead {lines_read} lines, output {lines_output} entries", file=sys.stderr)
