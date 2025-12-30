@@ -126,10 +126,20 @@ def init_sqlite_db(db_path):
         )
     ''')
 
-    # Create FTS5 virtual table for full-text search on word field
-    # Using trigram tokenizer for better substring matching
+    # Create FTS5 virtual table with default tokenizer for prefix queries
+    # Good for short prefix queries (1-2 characters)
     cursor.execute('''
         CREATE VIRTUAL TABLE entries_fts USING fts5(
+            word,
+            content=entries,
+            content_rowid=id
+        )
+    ''')
+
+    # Create FTS5 virtual table with trigram tokenizer for substring matching
+    # Good for finding matches anywhere in the word
+    cursor.execute('''
+        CREATE VIRTUAL TABLE entries_fts_trigram USING fts5(
             word,
             content=entries,
             content_rowid=id,
@@ -137,16 +147,18 @@ def init_sqlite_db(db_path):
         )
     ''')
 
-    # Create triggers to keep FTS5 table in sync
+    # Create triggers to keep both FTS5 tables in sync
     cursor.execute('''
         CREATE TRIGGER entries_ai AFTER INSERT ON entries BEGIN
             INSERT INTO entries_fts(rowid, word) VALUES (new.id, new.word);
+            INSERT INTO entries_fts_trigram(rowid, word) VALUES (new.id, new.word);
         END
     ''')
 
     cursor.execute('''
         CREATE TRIGGER entries_ad AFTER DELETE ON entries BEGIN
             INSERT INTO entries_fts(entries_fts, rowid, word) VALUES('delete', old.id, old.word);
+            INSERT INTO entries_fts_trigram(entries_fts_trigram, rowid, word) VALUES('delete', old.id, old.word);
         END
     ''')
 
@@ -154,6 +166,8 @@ def init_sqlite_db(db_path):
         CREATE TRIGGER entries_au AFTER UPDATE ON entries BEGIN
             INSERT INTO entries_fts(entries_fts, rowid, word) VALUES('delete', old.id, old.word);
             INSERT INTO entries_fts(rowid, word) VALUES (new.id, new.word);
+            INSERT INTO entries_fts_trigram(entries_fts_trigram, rowid, word) VALUES('delete', old.id, old.word);
+            INSERT INTO entries_fts_trigram(rowid, word) VALUES (new.id, new.word);
         END
     ''')
 

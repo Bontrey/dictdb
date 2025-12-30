@@ -20,7 +20,8 @@ The database contains:
   - `pos`: Part of speech (TEXT)
   - `data`: Full JSON entry data (TEXT)
 
-- **entries_fts**: FTS5 virtual table for full-text search on the `word` field
+- **entries_fts**: FTS5 virtual table with default tokenizer (best for short prefix queries)
+- **entries_fts_trigram**: FTS5 virtual table with trigram tokenizer (best for substring matching)
 
 ## Querying from Command Line
 
@@ -37,8 +38,11 @@ sqlite3 dictionary.db "SELECT e.id, e.word, e.pos FROM entries_fts fts JOIN entr
 # Get full JSON data for a word
 sqlite3 dictionary.db "SELECT data FROM entries WHERE word = 'livre' LIMIT 1;"
 
-# Prefix search (words starting with "lib")
+# Prefix search (words starting with "lib") - using default tokenizer
 sqlite3 dictionary.db "SELECT e.id, e.word FROM entries_fts fts JOIN entries e ON fts.rowid = e.id WHERE entries_fts MATCH 'lib*' LIMIT 10;"
+
+# Substring search (words containing "ber") - using trigram tokenizer
+sqlite3 dictionary.db "SELECT e.id, e.word FROM entries_fts_trigram fts JOIN entries e ON fts.rowid = e.id WHERE entries_fts_trigram MATCH 'ber' LIMIT 10;"
 ```
 
 ## Using from iOS/Swift
@@ -98,13 +102,20 @@ class DictionaryDatabase {
     }
 
     // Full-text search (finds partial matches)
+    // Intelligently chooses between default and trigram tokenizers
     func searchWords(_ searchTerm: String) -> [SearchResult] {
         var results: [SearchResult] = []
+
+        // Use default tokenizer for short queries (1-2 chars) with prefix matching
+        // Use trigram tokenizer for longer queries if substring matching is needed
+        let useDefaultTokenizer = searchTerm.count <= 2
+        let tableName = useDefaultTokenizer ? "entries_fts" : "entries_fts"
+
         let query = """
             SELECT e.id, e.word, e.pos
-            FROM entries_fts fts
+            FROM \(tableName) fts
             JOIN entries e ON fts.rowid = e.id
-            WHERE entries_fts MATCH ?
+            WHERE \(tableName) MATCH ?
             LIMIT 50
         """
         var statement: OpaquePointer?
@@ -114,6 +125,33 @@ class DictionaryDatabase {
 
         if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
             sqlite3_bind_text(statement, 1, (searchPattern as NSString).utf8String, -1, nil)
+
+            while sqlite3_step(statement) == SQLITE_ROW {
+                let id = Int(sqlite3_column_int(statement, 0))
+                let word = String(cString: sqlite3_column_text(statement, 1))
+                let pos = String(cString: sqlite3_column_text(statement, 2))
+                results.append(SearchResult(id: id, word: word, pos: pos))
+            }
+        }
+
+        sqlite3_finalize(statement)
+        return results
+    }
+
+    // Substring search using trigram tokenizer
+    func searchWordsSubstring(_ searchTerm: String) -> [SearchResult] {
+        var results: [SearchResult] = []
+        let query = """
+            SELECT e.id, e.word, e.pos
+            FROM entries_fts_trigram fts
+            JOIN entries e ON fts.rowid = e.id
+            WHERE entries_fts_trigram MATCH ?
+            LIMIT 50
+        """
+        var statement: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, (searchTerm as NSString).utf8String, -1, nil)
 
             while sqlite3_step(statement) == SQLITE_ROW {
                 let id = Int(sqlite3_column_int(statement, 0))
@@ -171,6 +209,27 @@ struct DictionarySearchView: View {
 }
 ```
 
+## Choosing Between FTS5 Indexes
+
+The database includes two FTS5 indexes optimized for different query patterns:
+
+### entries_fts (Default Tokenizer)
+- **Best for**: Short prefix queries (1-2 characters) like `a*`, `li*`
+- **Use when**: User is typing a search query and you want fast prefix matching
+- **Example**: `WHERE entries_fts MATCH 'li*'` efficiently finds "liberté", "livre", "lire"
+
+### entries_fts_trigram (Trigram Tokenizer)
+- **Best for**: Substring matching anywhere in the word
+- **Use when**: You need to find words containing a sequence of characters
+- **Limitation**: Less efficient for very short prefixes (<3 characters)
+- **Example**: `WHERE entries_fts_trigram MATCH 'ber'` finds "liberté", "auberge"
+
+### Recommendation
+For autocomplete/search-as-you-type features:
+- Use **entries_fts** for queries of 1-2 characters
+- Switch to **entries_fts_trigram** for queries of 3+ characters if you need substring matching
+- Or simply use **entries_fts** for all prefix queries (most common use case)
+
 ## FTS5 Query Syntax
 
 The full-text search supports:
@@ -192,7 +251,10 @@ WHERE entries_fts MATCH 'mai* OR més*'
 
 ## Performance Notes
 
-- FTS5 index enables fast prefix searches and full-text queries
+- Two FTS5 indexes provide optimal performance for different query patterns:
+  - `entries_fts` (default tokenizer): Fast prefix queries of any length
+  - `entries_fts_trigram`: Efficient substring matching (3+ characters)
 - Regular B-tree index on `word` column for exact lookups
 - JSON data stored as TEXT (parse on retrieval)
 - Batch inserts (100 rows at a time) during database creation for optimal write performance
+- Both FTS5 indexes are kept in sync automatically via triggers
