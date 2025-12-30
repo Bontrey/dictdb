@@ -127,11 +127,13 @@ def init_sqlite_db(db_path):
     ''')
 
     # Create FTS5 virtual table for full-text search on word field
+    # Using trigram tokenizer for better substring matching
     cursor.execute('''
         CREATE VIRTUAL TABLE entries_fts USING fts5(
             word,
             content=entries,
-            content_rowid=id
+            content_rowid=id,
+            tokenize='trigram'
         )
     ''')
 
