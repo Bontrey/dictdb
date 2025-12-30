@@ -5,7 +5,7 @@ Usage: python filter_jsonl.py [n] [input_file] [schema_file] [output_file]
        python filter_jsonl.py [n] --sqlite output.db [input_file] [schema_file]
        python filter_jsonl.py [n] --sqlite output.db --compress [input_file] [schema_file]
 Note: If n is not specified, processes entire input file.
-      --compress creates output.db.xz using LZMA compression (iOS-compatible).
+      --compress creates output.db.lzfse using LZFSE compression (iOS-compatible).
 """
 
 import json
@@ -13,7 +13,7 @@ import sys
 import re
 import sqlite3
 import os
-import lzma
+import liblzfse
 
 
 def parse_schema_structure(schema_file):
@@ -71,24 +71,22 @@ def filter_by_schema(obj, schema):
 
 def compress_sqlite_db(db_path):
     """
-    Compress SQLite database using LZMA (best compression ratio for iOS).
-    Creates db_path.xz and removes the original uncompressed database.
-    Uses maximum compression preset (9) for smallest file size.
+    Compress SQLite database using LZFSE (Apple's compression algorithm for iOS).
+    Creates db_path.lzfse and removes the original uncompressed database.
+    LZFSE provides good compression with better performance than LZMA.
     """
-    compressed_path = f"{db_path}.xz"
+    compressed_path = f"{db_path}.lzfse"
 
     print(f"Compressing {db_path} -> {compressed_path}...", file=sys.stderr)
 
     # Read the database file and compress it
     with open(db_path, 'rb') as f_in:
-        with lzma.open(compressed_path, 'wb', preset=9) as f_out:
-            # Read and compress in chunks to handle large files efficiently
-            chunk_size = 1024 * 1024  # 1MB chunks
-            while True:
-                chunk = f_in.read(chunk_size)
-                if not chunk:
-                    break
-                f_out.write(chunk)
+        data = f_in.read()
+        compressed_data = liblzfse.compress(data)
+
+    # Write compressed data
+    with open(compressed_path, 'wb') as f_out:
+        f_out.write(compressed_data)
 
     # Get file sizes for reporting
     original_size = os.path.getsize(db_path)
@@ -270,7 +268,7 @@ def main():
         schema_file = sys.argv[arg_offset + 1] if len(sys.argv) > arg_offset + 1 else "schema.json"
         output_handler = SqliteOutput(db_file)
         if compress_db:
-            print(f"Output mode: SQLite database -> {db_file}.xz (LZMA compressed)", file=sys.stderr)
+            print(f"Output mode: SQLite database -> {db_file}.lzfse (LZFSE compressed)", file=sys.stderr)
         else:
             print(f"Output mode: SQLite database -> {db_file}", file=sys.stderr)
     else:
